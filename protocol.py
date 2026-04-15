@@ -6,13 +6,11 @@ def mesaj_hazirla(mesaj_tipi, veri):
         "tip": mesaj_tipi,
         "veri": veri
     }
-    return json.dumps(paket).encode('utf-8')
+    return (json.dumps(paket) + "\n").encode('utf-8')
 
-def mesaj_coz(gelen_byte_veri):
+def mesaj_coz(gelen_string):
 
-    if not gelen_byte_veri:
-        return None
     try:
-        return json.loads(gelen_byte_veri.decode('utf-8'))
+        return json.loads(gelen_string)
     except json.JSONDecodeError:
         return None
