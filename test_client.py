@@ -1,3 +1,7 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  PHASE 1 DOSYASI — Mevcut P2P oyununda KULLANILMAZ              ║
+# ║  Çok erken geliştirme aşamasından kalan ham bağlantı testi.     ║
+# ╚══════════════════════════════════════════════════════════════════╝
 import socket
 
 # 1. Soket oluştur

@@ -1,70 +1,62 @@
-class GameState:
-    def __init__(self):
-        # Ekran sınırları (config.py ile uyumlu)
-        self.screen_w = 800
-        self.screen_h = 600
-        self.paddle_h = 90
-        self.paddle_speed = 10
+"""
+game_state.py — Oyun Veri Modeli
+==================================
+Anlık oyun durumunun (top, raketler, skor, oyuncu adları) tek yetkili
+kaynağıdır.  Ağ üzerinden senkronize edilen her şey bu nesnede tutulur.
 
-        # Başlangıç konumları
-        self.p1_y = 250
-        self.p2_y = 250
+  GameState : Oyun akışını tanımlayan enum  (WAITING / RUNNING / GAME_OVER)
+  GameData  : Frame bazında anlık snapshot;  host her frame UDP ile gönderir,
+              joiner aldığı verilerle kendi kopyasını eşler.
+"""
 
-        self.ball_x = 400
-        self.ball_y = 300
+from enum import Enum
+import config
 
-        # Topun x ve y eksenindeki hızı
-        self.ball_dx = 6
-        self.ball_dy = 6
 
-        self.score_p1 = 0
-        self.score_p2 = 0
+class GameState(Enum):
+    """Oyun döngüsünün hangi aşamasında olduğunu gösterir."""
+    WAITING   = "waiting"    # Geri sayım veya bağlantı bekleniyor
+    RUNNING   = "running"    # Aktif oyun
+    GAME_OVER = "game_over"  # Biri kazandı, oyun bitti
 
-    def update_physics(self):
-        """
-        Saniyede 60 kez (60 FPS) çağrılacak fizik motoru.
-        Server otoriter olduğu için bu hesaplar sadece burada yapılır.
-        """
-        # 1. Topu hareket ettir
-        self.ball_x += self.ball_dx
-        self.ball_y += self.ball_dy
 
-        # 2. Üst ve alt duvarlara çarpma kontrolü
-        if self.ball_y <= 0 or self.ball_y >= self.screen_h:
-            self.ball_dy *= -1  # Yönü tersine çevir
+class GameData:
+    """
+    Anlık oyun verisi.
 
-        # 3. Raketlere çarpma kontrolü
-        # Sol raket (P1) - X ekseninde 15 piksellik alanda duruyor
-        if self.ball_x <= 30 and (self.p1_y <= self.ball_y <= self.p1_y + self.paddle_h):
-            self.ball_dx *= -1
-            self.ball_x = 30  # Duvara yapışma bug'ını önler
+    Kimin neyi güncellediği:
+      - Host    : top (x, y, vx, vy), skor, paddle1_y → UDP ile joiner'a gönderir
+      - Joiner  : paddle2_y → UDP ile host'a gönderir; geri kalan host'tan gelir
+    """
 
-        # Sağ raket (P2) - X ekseninde 770 piksellik alanda duruyor
-        if self.ball_x >= 770 and (self.p2_y <= self.ball_y <= self.p2_y + self.paddle_h):
-            self.ball_dx *= -1
-            self.ball_x = 770
+    def __init__(self, player1_name: str = "Player1", player2_name: str = "Player2"):
+        # ── Oyun akışı ──────────────────────────────────────────────────────
+        self.state     = GameState.WAITING
+        self.score1    = 0      # Sol oyuncu (host) skoru
+        self.score2    = 0      # Sağ oyuncu (joiner) skoru
+        self.max_score = 5      # Bu skorla oyun biter
+        self.winner    = None   # 1 = host kazandı, 2 = joiner kazandı, None = devam
 
-        # 4. Skor Kontrolü (Top ekranın sağına veya soluna çıkarsa)
-        if self.ball_x < 0:
-            self.score_p2 += 1
-            self.reset_ball()
-        elif self.ball_x > self.screen_w:
-            self.score_p1 += 1
-            self.reset_ball()
+        # ── Raketler ────────────────────────────────────────────────────────
+        self.paddle_height: int = 100   # Raket yüksekliği (px)
+        self.paddle_speed:  int = 10    # Raket hızı (px/frame)
 
-    def reset_ball(self):
-        """Gol olduğunda topu ortaya alıp yönünü ters çevirir"""
-        self.ball_x = 400
-        self.ball_y = 300
-        self.ball_dx *= -1
+        # Başlangıç Y: sahada dikey orta
+        field_bottom       = config.WINDOW_HEIGHT - config.FIELD_BOTTOM_MARGIN
+        start_y            = (config.FIELD_TOP + field_bottom - self.paddle_height) / 2.0
+        self.paddle1_y: float = start_y   # Host (sol) raket Y koordinatı
+        self.paddle2_y: float = start_y   # Joiner (sağ) raket Y koordinatı
 
-    def durumu_getir(self):
-        """Client'lara gönderilecek nihai veri sözlüğü"""
-        return {
-            "paddle_left_y": self.p1_y,
-            "paddle_right_y": self.p2_y,
-            "ball_x": self.ball_x,
-            "ball_y": self.ball_y,
-            "score_left": self.score_p1,
-            "score_right": self.score_p2
-        }
+        # ── Top ─────────────────────────────────────────────────────────────
+        self.ball_x:      float = float(config.GAME_AREA_WIDTH // 2)
+        self.ball_y:      float = float((config.FIELD_TOP + field_bottom) / 2.0)
+        self.ball_vx:     float = 5.0    # Yatay hız  (+→sağ, -→sol)
+        self.ball_vy:     float = 3.0    # Dikey hız  (+→aşağı, -→yukarı)
+        self.ball_speed:  float = 5.0    # Mevcut büyüklük; GameLogic artırır
+        self.ball_radius: int   = 5      # Çizim ve çarpışma yarıçapı (px)
+
+        # ── Oyuncu bilgileri ─────────────────────────────────────────────────
+        self.player1_name  = player1_name
+        self.player2_name  = player2_name
+        self.player1_color = (255, 100,  50)   # Turuncu — host (sol)
+        self.player2_color = (100, 200, 150)   # Yeşilimsi — joiner (sağ)

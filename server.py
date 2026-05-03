@@ -1,3 +1,8 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  PHASE 1 DOSYASI — Mevcut P2P oyununda KULLANILMAZ              ║
+# ║  Eski merkezi sunucu mimarisine aittir.                         ║
+# ║  Aktif oyun: client.py + network_handler_p2p.py                 ║
+# ╚══════════════════════════════════════════════════════════════════╝
 import socket
 import select
 import time
@@ -111,7 +116,3 @@ def start_server():
     p1_socket.close()
     p2_socket.close()
     server_socket.close()
-
-
-if __name__ == "__main__":
-    start_server()
